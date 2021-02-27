@@ -3,16 +3,18 @@ const path = require('path');
 const methodOverride = require('method-override');
 const mongoose = require('mongoose');
 const ejsMate = require('ejs-mate'); // EJS Layout  for boiler plate
-const {campgroundSchema} = require('./schemas.js')
-const catchAsync = require('./utils/catchAsync');
-const Campground = require('./models/campground');
 const ExpressError = require('./utils/ExpressError');
+const campgrounds = require('./routes/campgrounds');
+const reviews = require('./routes/reviews');
+const session = require('express-session');
+const flash = require('connect-flash');
 
 
 mongoose.connect('mongodb://localhost:27017/yelp-camp', {
     useNewUrlParser: true, 
     useCreateIndex: true,
-    useUnifiedTopology: true
+    useUnifiedTopology: true,
+    useFindAndModify: false
 });
     
 const db = mongoose.connection;
@@ -29,69 +31,46 @@ app.set('views', path.join(__dirname, '/views'));
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true })); //setting middleware for passing the body of a post request
 app.use(methodOverride('_method'));
+app.use(express.static(path.join(__dirname, 'public'))); //serving static assets from the public folder (i.e custom js and css)
 
-const validateCampground = (req, res, next) => {
-    const {error}=campgroundSchema.validate(req.body);
-    if(error){
-        const msg = error.details.map(el => el.message).join(',')
-        throw new ExpressError(msg, 400)
-    }else{
-        next();
+// create a configuarion object for the session
+const sessionConfig = {
+    secret: 'thisshouldbeabettersecret!',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        httpOnly: true,  // doesn't allow cookies to be access trough client side script
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
+        maxAge: 1000 * 60 * 60 * 24 * 7
     }
 }
+
+// use tthe session as a middleware
+app.use(session(sessionConfig));
+app.use(flash());
+
+// define a middleware that contain flash messages, and pass it through ever request 
+app.use((req, res, next) => {
+    res.locals.success = req.flash('success'); // save the success (key value pair) in a local memory of success 
+    res.locals.error = req.flash('error');
+    next();
+})
+
+// use routes as middleware
+app.use('/campgrounds', campgrounds)
+app.use('/campgrounds/:id/reviews', reviews)
+
 
 app.get('/', (req,res)=>{
 res.render('home')
 })
-
-app.get('/campgrounds', catchAsync(async (req,res)=>{
-    const campgrounds = await Campground.find({});
-    res.render('campgrounds/index', {campgrounds});
-    }));
-
-
-app.get('/campgrounds/new', async (req,res)=>{ 
-    res.render('campgrounds/new');
-    })
-
-app.post('/campgrounds', validateCampground, catchAsync(async (req, res) =>{
-    //if(!req.body.Campground) throw new ExpressError('Invalid Campground data', 400)
-    //console.log(req.body.campground)
-    const campground = new Campground(req.body.campground);
-    await campground.save();
-    res.redirect(`/campgrounds/${campground._id}`)
-}))
-// check error ha
-app.get('/campgrounds/:id', catchAsync(async (req,res)=>{
-    const campground = await Campground.findById(req.params.id)
-    res.render('campgrounds/show', {campground});
-    }));
-
-app.get('/campgrounds/:id/edit', catchAsync(async (req,res)=>{
-    const campground = await Campground.findById(req.params.id)
-    res.render('campgrounds/edit', {campground});
-    }));
-
-
-app.put('/campgrounds/:id', validateCampground, catchAsync(async (req,res)=>{
-    const {id} = req.params;
-    // console.log(req.body)
-    // console.log(req.body.campground)
-    const campground = await Campground.findByIdAndUpdate(id, {...req.body.campground}); // based on campground[title], we get an object (hence we spred it into a new object) in in req.body, with the relant key value pairs 
-    res.redirect(`/campgrounds/${campground._id}`);
-    }));
-
-app.delete('/campgrounds/:id', catchAsync(async (req,res)=>{
-    const {id} = req.params;
-    await Campground.findByIdAndDelete(id);
-    res.redirect('/campgrounds');
-    }));
 
 // display 404
 app.all('*', (req,res,next) => { // based on the order, this will only run if nothing else was matched first
     next(new ExpressError('Page Not Found', 404))
 })
 
+// custom method middleware that handle error
 app.use((err, req, res, next) => {
     const {statusCode=500, message='Something went wrong'} = err;
     if (!err.message) err.message = 'Oh No, Something Went Wrong!'
