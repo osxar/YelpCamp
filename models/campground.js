@@ -16,6 +16,15 @@ const CampgroundSchema = new Schema({
 });
 
 //query middleware
-// It's a mongoose post middleware that collects the delete campground and delete all the reviews
+// It's a mongoose post (after) middleware that collects the delete campground and delete all the reviews
+CampgroundSchema.post('findOneAndDelete', async function (doc) {
+    if (doc) {
+        await Review.deleteMany({
+            _id: {
+                $in: doc.reviews
+            }
+        })
+    }
+})
 
 module.exports = mongoose.model('Campground', CampgroundSchema);
