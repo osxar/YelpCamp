@@ -4,10 +4,15 @@ const methodOverride = require('method-override');
 const mongoose = require('mongoose');
 const ejsMate = require('ejs-mate'); // EJS Layout  for boiler plate
 const ExpressError = require('./utils/ExpressError');
-const campgrounds = require('./routes/campgrounds');
-const reviews = require('./routes/reviews');
+const userRoutes = require('./routes/users');
+const campgroundRoutes = require('./routes/campgrounds');
+const reviewRoutes = require('./routes/reviews');
+
 const session = require('express-session');
 const flash = require('connect-flash');
+const passport = require('passport');
+const LocalStrategy = require('passport-local');
+const User = require('./models/user');
 
 
 mongoose.connect('mongodb://localhost:27017/yelp-camp', {
@@ -35,7 +40,7 @@ app.use(express.static(path.join(__dirname, 'public'))); //serving static assets
 
 // create a configuarion object for the session
 const sessionConfig = {
-    secret: 'thisshouldbeabettersecret!',
+    secret: 'thisshouldbeabettersecret!',  //?  
     resave: false,
     saveUninitialized: true,
     cookie: {
@@ -45,20 +50,30 @@ const sessionConfig = {
     }
 }
 
-// use tthe session as a middleware
+// use the session as a middleware
 app.use(session(sessionConfig));
 app.use(flash());
 
-// define a middleware that contain flash messages, and pass it through ever request 
+app.use(passport.initialize());
+app.use(passport.session());  // this =app.use(session(sessionConfig)); has to be set before passport.session()
+passport.use(new LocalStrategy(User.authenticate())); 
+passport.serializeUser(User.serializeUser());     // how to we store a user in a sesssion
+passport.deserializeUser(User.deserializeUser());  // how to remove a user from a session
+
+
+// define a middleware that contain flash messages and user data(set by passport), and pass it through every request 
 app.use((req, res, next) => {
-    res.locals.success = req.flash('success'); // save the success (key value pair) in a local memory of success 
-    res.locals.error = req.flash('error');
+    res.locals.currentUser = req.user;  //"Global variables". Passport sets the user variable on the request obect. This variable is the relevant info of the signined in user (id,name,email) which was set in sessions
+    res.locals.success = req.flash('success'); // save the success (key value pair) in a local memory of success "Global variables"
+    res.locals.error = req.flash('error'); //"Global variables"
     next();
 })
 
 // use routes as middleware
-app.use('/campgrounds', campgrounds)
-app.use('/campgrounds/:id/reviews', reviews)
+app.use('/', userRoutes);
+app.use('/campgrounds', campgroundRoutes)
+app.use('/campgrounds/:id/reviews', reviewRoutes)
+
 
 
 app.get('/', (req,res)=>{
