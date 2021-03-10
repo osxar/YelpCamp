@@ -1,4 +1,4 @@
-const { campgroundSchema, reviewSchema } = require('./schemas.js');
+const { campgroundSchema, reviewSchema } = require('./schemas.js'); //JOI is used to validate the data sent to the server 
 const ExpressError = require('./utils/ExpressError');
 const Campground = require('./models/campground');
 const Review = require('./models/review');
