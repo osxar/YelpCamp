@@ -12,6 +12,8 @@ ImageSchema.virtual('thumbnail').get(function () {  // add a virtual method that
 });
 
 
+const opts = { toJSON: { virtuals: true } };
+
 const CampgroundSchema = new Schema({
     title: String,
     images: [ImageSchema],
@@ -39,7 +41,15 @@ const CampgroundSchema = new Schema({
             ref: 'Review'
         }
     ]
+}, opts);
+
+
+CampgroundSchema.virtual('properties.popUpMarkup').get(function () {
+    return `
+    <strong><a href="/campgrounds/${this._id}">${this.title}</a><strong>
+    <p>${this.description.substring(0, 20)}...</p>`
 });
+
 
 //query middleware
 // It's a mongoose post (after) middleware that collects the delete campground and delete all the reviews
